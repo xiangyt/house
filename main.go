@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"github.com/axgle/mahonia"
 	"net/http"
 	"strings"
 	"sync"
@@ -100,8 +101,8 @@ type House struct {
 }
 
 func (h *House) print() {
-	fmt.Printf("坐落:%s, 楼栋:%s, 单元:%s, 层数:%s, 总价:%s, 状态:%s,\r\n",
-		h.Description, h.BuildingNum, h.Unit, h.Floor, h.TotalPrice, h.getStatus())
+	fmt.Printf("坐落:%s, 楼栋:%s, 单元:%s, 层数:%s, 室号:%s, 总价:%s, 状态:%s,\r\n",
+		h.Description, h.BuildingNum, h.Unit, h.Floor, h.Room, h.TotalPrice, h.getStatus())
 }
 
 func (h *House) getStatus() string {
@@ -143,6 +144,8 @@ func getBuildingTable(url string) (*Building, error) {
 		return nil, err
 	}
 
+	decoder := mahonia.NewDecoder("GBK")
+
 	var houses []*House
 	doc.Find("#fwxx table tr").Each(func(i int, s *goquery.Selection) {
 		// For each item found, get the title
@@ -165,7 +168,7 @@ func getBuildingTable(url string) (*Building, error) {
 				arr := strings.Split(hurl, "?gid=")
 				if len(arr) == 2 {
 					h.GId = arr[1]
-					h.Room = s.Text()
+					h.Room = decoder.ConvertString(s.Text())
 					bgColor, _ := s.Attr("style")
 					h.Status = getSaleStatus(bgColor)
 					houses = append(houses, &h)
