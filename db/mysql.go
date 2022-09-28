@@ -63,7 +63,11 @@ func (m *Mysql) Init() error {
 	m.db = db
 	logrus.Info("init mysql success!")
 
-	err = m.db.AutoMigrate(&model.House{})
+	err = m.db.AutoMigrate(
+		&model.Zone{},
+		&model.Building{},
+		&model.House{},
+	)
 	if err != nil {
 		return errors.New(fmt.Sprintf("AutoMigrate failed, err:%s", err))
 	}

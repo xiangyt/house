@@ -5,8 +5,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xiangyt/house/config"
 	"github.com/xiangyt/house/db"
+	"github.com/xiangyt/house/service"
 	"github.com/xiangyt/house/srv"
 	"github.com/xiangyt/house/task"
+	"github.com/xiangyt/house/util"
 	"net/http"
 )
 
@@ -32,6 +34,10 @@ func main() {
 		}
 
 		en.GET("/ping", func(c *gin.Context) {
+			zone, err := util.GetZone("夏2000061")
+			if err == nil {
+				db.GetDB().Save(zone)
+			}
 			c.String(http.StatusOK, "pong")
 		})
 
@@ -48,11 +54,27 @@ func InitDatabase() error {
 
 func InitTask() error {
 	err := task.GetManager().AddJob(task.Job{
-		Name: "cron_refresh_house_info",
+		Name: "cron_refresh_zone_info",
 		Spec: "*/10 * * * *",
-		Func: func() {
-			logrus.Println("test job")
-		},
+		Func: service.RefreshZone,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = task.GetManager().AddJob(task.Job{
+		Name: "cron_refresh_building_info",
+		Spec: "59 17 * * *",
+		Func: service.RefreshBuilding,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = task.GetManager().AddJob(task.Job{
+		Name: "cron_refresh_house_info",
+		Spec: "31 18 * * *",
+		Func: service.RefreshHouse,
 	})
 	if err != nil {
 		return err

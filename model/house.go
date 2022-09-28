@@ -1,9 +1,7 @@
 package model
 
-import "time"
-
 type House struct {
-	GId              string  `gorm:"primaryKey"`
+	GId              string  `gorm:"primaryKey;column:gid"`
 	BuildingNum      string  // 栋号
 	Unit             string  // 单元
 	Floor            string  // 层数
@@ -16,7 +14,8 @@ type House struct {
 	FurnishPrice     float64 // 装修价款（元）
 	DeliveryStandard string  // 交付标准
 	Status           int     // 状态
-	SaleTime         time.Time
+	SaleTime         int64
+	BuildingId       string
 }
 
 func (h House) TableName() string {

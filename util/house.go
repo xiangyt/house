@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/axgle/mahonia"
+	"github.com/xiangyt/house/constants"
+	"github.com/xiangyt/house/model"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -19,67 +22,30 @@ const (
 	//MortgageSeized = "background-color:#FFFF00" // 已在建工程抵押已查封
 )
 
+const IP = "119.97.201.22"
+
 func getSaleStatus(bgColor string) int {
 	switch bgColor {
 	case NotSale:
-		return 1
+		return constants.NotSale
 	case Sold:
-		return 2
+		return constants.Sold
 	case Limit:
-		return 3
+		return constants.Limit
 	case Mortgage:
-		return 4
+		return constants.Mortgage
 	case Seized:
-		return 5
+		return constants.Seized
 	}
-	return 0
+	return constants.Unknown
 }
 
-type House struct {
-	GId              string
-	BuildingNum      string // 栋号
-	Unit             string // 单元
-	Floor            string // 层数
-	Room             string // 室号
-	Description      string // 房屋坐落
-	ConstructionArea string // 预售（现售）建筑面积（平方米）
-	UnitPrice        string // 预售（现售）单价（元/平方米）
-	TotalPrice       string // 房屋总价款（元）
-	RoughcastPrice   string // 其中	毛坯价款（元）
-	FurnishPrice     string // 装修价款（元）
-	DeliveryStandard string // 交付标准
-	Status           int    // 状态
-}
+// GetFangTable 获取楼盘表(房表)
+func GetFangTable(zoneId, buildingId string) ([]*model.House, error) {
+	encoder := mahonia.NewEncoder("GBK")
+	url := fmt.Sprintf("http://%s:8083/spfxmcx/spfcx_fang.aspx?dengJH=%s&houseDengJh=%s",
+		IP, encoder.ConvertString(zoneId), encoder.ConvertString(buildingId))
 
-func (h *House) print() {
-	fmt.Printf("坐落:%s, 楼栋:%s, 单元:%s, 层数:%s, 室号:%s, 总价:%s, 状态:%s,\r\n",
-		h.Description, h.BuildingNum, h.Unit, h.Floor, h.Room, h.TotalPrice, h.getStatus())
-}
-
-func (h *House) getStatus() string {
-	switch h.Status {
-	case 1:
-		return "未销（预）售"
-	case 2:
-		return "已网上销售"
-	case 3:
-		return "限制出售"
-	case 4:
-		return "已在建工程抵押"
-	case 5:
-		return "已查封"
-	default:
-		return "未知"
-	}
-}
-
-type Building struct {
-	Number string // 栋号
-	Houses []*House
-}
-
-// GetBuildingTable 获取楼盘表
-func GetBuildingTable(url string) (*Building, error) {
 	res, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -97,24 +63,29 @@ func GetBuildingTable(url string) (*Building, error) {
 
 	decoder := mahonia.NewDecoder("GBK")
 
-	var houses []*House
+	//content, _ := doc.Html()
+	//fmt.Println(decoder.ConvertString(content))
+
+	var houses []*model.House
 	doc.Find("#fwxx table tr").Each(func(i int, s *goquery.Selection) {
 		// For each item found, get the title
-		if i <= 1 {
+		if i < 1 {
 			return
 		}
 		//fmt.Printf("Review tr %d\n", i)
-		house := &House{}
+		house := model.House{
+			BuildingId: buildingId,
+		}
 		s.Find("td").Each(func(i int, s *goquery.Selection) {
 			switch i {
 			case 0:
-				house.BuildingNum, _ = s.Html()
+				house.BuildingNum = s.Text()
 			case 1:
-				house.Unit, _ = s.Html()
+				house.Unit = s.Text()
 			case 2:
-				house.Floor, _ = s.Html()
+				house.Floor = s.Text()
 			default:
-				var h = *house
+				var h = house
 				hurl, _ := s.Find("a").Attr("href")
 				arr := strings.Split(hurl, "?gid=")
 				if len(arr) == 2 {
@@ -122,35 +93,33 @@ func GetBuildingTable(url string) (*Building, error) {
 					h.Room = decoder.ConvertString(s.Text())
 					bgColor, _ := s.Attr("style")
 					h.Status = getSaleStatus(bgColor)
+					//if h.Status == constants.Sold {
+					//	h.SaleTime = time.Now()
+					//}
 					houses = append(houses, &h)
 				}
 			}
-
 		})
-
 	})
 
 	//for _, house := range houses {
 	//	fmt.Printf("house: %+v\n", house)
 	//}
 
-	return &Building{Houses: houses}, nil
+	return houses, nil
 }
 
-func GetHouseInfoUrl(qid string) string {
-	return "http://119.97.201.22:8080/TimeFL.aspx?gid=" + qid
-}
-
-func GetHouseInfo(url string, house *House) (*House, error) {
-	req, _ := http.NewRequest("GET", url, nil)
+// GetHouseInfo 商品房预售（现售）方案信息查询
+func GetHouseInfo(house *model.House) (*model.House, error) {
+	req, _ := http.NewRequest("GET", "http://"+IP+":8080/TimeFL.aspx?gid="+house.GId, nil)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
 	req.Header.Set("Accept-Encoding", "gzip, deflate")
 	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9")
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("Host", "119.97.201.22:8080")
+	req.Header.Set("Host", IP+":8080")
 	req.Header.Set("Pragma", "no-cache")
-	req.Header.Set("Referer", "http://119.97.201.22:8083/")
+	req.Header.Set("Referer", "http://"+IP+":8083/")
 	req.Header.Set("Upgrade-Insecure-Requests", "1")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36")
 
@@ -253,15 +222,15 @@ func GetHouseInfo(url string, house *House) (*House, error) {
 			case i == 1 && j == 2:
 				house.Description = s1.Text()
 			case i == 3 && j == 2:
-				house.ConstructionArea = s1.Text()
+				house.ConstructionArea, _ = strconv.ParseFloat(s1.Text(), 64)
 			case i == 4 && j == 2:
-				house.UnitPrice = s1.Text()
+				house.UnitPrice, _ = strconv.ParseFloat(s1.Text(), 64)
 			case i == 5 && j == 2:
-				house.TotalPrice = s1.Text()
+				house.TotalPrice, _ = strconv.ParseFloat(s1.Text(), 64)
 			case i == 6 && j == 2:
-				house.RoughcastPrice = s1.Text()
+				house.RoughcastPrice, _ = strconv.ParseFloat(s1.Text(), 64)
 			case i == 7 && j == 1:
-				house.FurnishPrice = s1.Text()
+				house.FurnishPrice, _ = strconv.ParseFloat(s1.Text(), 64)
 			case i == 8 && j == 2:
 				house.DeliveryStandard = s1.Text()
 			}

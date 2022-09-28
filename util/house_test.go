@@ -7,23 +7,21 @@ import (
 )
 
 func TestGetHouseInfo(t *testing.T) {
-	fmt.Println(GetHouseInfo(GetHouseInfoUrl("1946d6e5-d328-4917-838f-5970e3709181"), &House{}))
-}
+	//fmt.Println(GetHouseInfo(GetHouseInfoUrl("1946d6e5-d328-4917-838f-5970e3709181"), &House{}))
 
-func TestGetBuildingTable(t *testing.T) {
-	build, err := GetBuildingTable("http://119.97.201.22:8083/spfxmcx/spfcx_fang.aspx?dengJH=%CF%C42000061&houseDengJh=%CF%C40008385")
+	houses, err := GetFangTable("夏2000061", "夏0008385")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	var wg sync.WaitGroup
-	for _, house := range build.Houses {
+	for _, house := range houses {
 		house := house
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := GetHouseInfo(GetHouseInfoUrl(house.GId), house)
+			_, err := GetHouseInfo(house)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -32,7 +30,7 @@ func TestGetBuildingTable(t *testing.T) {
 	}
 	wg.Wait()
 
-	for _, house := range build.Houses {
-		house.print()
+	for _, house := range houses {
+		fmt.Printf("%+v\r\n", house)
 	}
 }
